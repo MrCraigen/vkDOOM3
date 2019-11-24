@@ -447,9 +447,11 @@ static VkPipeline CreateGraphicsPipeline(
 		depthStencilState.depthTestEnable = VK_TRUE;
 		depthStencilState.depthWriteEnable = ( stateBits & GLS_DEPTHMASK ) == 0;
 		depthStencilState.depthCompareOp = depthCompareOp;
-		depthStencilState.depthBoundsTestEnable = ( stateBits & GLS_DEPTH_TEST_MASK ) != 0;
-		depthStencilState.minDepthBounds = 0.0f;
-		depthStencilState.maxDepthBounds = 1.0f;
+		if ( vkcontext.gpu.features.depthBounds ) {
+			depthStencilState.depthBoundsTestEnable = ( stateBits & GLS_DEPTH_TEST_MASK ) != 0;
+			depthStencilState.minDepthBounds = 0.0f;
+			depthStencilState.maxDepthBounds = 1.0f;
+		}
 		depthStencilState.stencilTestEnable = ( stateBits & ( GLS_STENCIL_FUNC_BITS | GLS_STENCIL_OP_BITS ) ) != 0;
 
 		uint32 ref = uint32( ( stateBits & GLS_STENCIL_FUNC_REF_BITS ) >> GLS_STENCIL_FUNC_REF_SHIFT );
@@ -513,7 +515,7 @@ static VkPipeline CreateGraphicsPipeline(
 		dynamic.Append( VK_DYNAMIC_STATE_DEPTH_BIAS );
 	}
 
-	if ( stateBits & GLS_DEPTH_TEST_MASK ) {
+	if ( vkcontext.gpu.features.depthBounds && ( stateBits & GLS_DEPTH_TEST_MASK ) ) {
 		dynamic.Append( VK_DYNAMIC_STATE_DEPTH_BOUNDS );
 	}
 
@@ -770,7 +772,7 @@ idRenderProgManager::AllocParmBlockBuffer
 */
 void idRenderProgManager::AllocParmBlockBuffer( const idList< int > & parmIndices, idUniformBuffer & ubo ) {
 	const int numParms = parmIndices.Num();
-	const int bytes = ALIGN( numParms * sizeof( idVec4 ), vkcontext.gpu->props.limits.minUniformBufferOffsetAlignment );
+	const int bytes = ALIGN( numParms * sizeof( idVec4 ), vkcontext.gpu.props.limits.minUniformBufferOffsetAlignment );
 
 	ubo.Reference( *m_parmBuffers[ m_currentData ], m_currentParmBufferOffset, bytes );
 
@@ -790,7 +792,7 @@ void idRenderProgManager::AllocParmBlockBuffer( const idList< int > & parmIndice
 idRenderProgManager::CommitCurrent
 ========================
 */
-void idRenderProgManager::CommitCurrent( uint64 stateBits ) {
+void idRenderProgManager::CommitCurrent( uint64 stateBits, VkCommandBuffer commandBuffer ) {
 	renderProg_t & prog = m_renderProgs[ m_current ];
 
 	VkPipeline pipeline = prog.GetPipeline( 
@@ -835,7 +837,7 @@ void idRenderProgManager::CommitCurrent( uint64 stateBits ) {
 			idLib::Error( "idRenderProgManager::CommitCurrent: jointBuffer == NULL" );
 			return;
 		}
-		assert( ( jointBuffer.GetOffset() & ( vkcontext.gpu->props.limits.minUniformBufferOffsetAlignment - 1 ) ) == 0 );
+		assert( ( jointBuffer.GetOffset() & ( vkcontext.gpu.props.limits.minUniformBufferOffsetAlignment - 1 ) ) == 0 );
 
 		ubos[ uboIndex++ ] = &jointBuffer;
 	} else if ( prog.optionalSkinning ) {
@@ -900,8 +902,8 @@ void idRenderProgManager::CommitCurrent( uint64 stateBits ) {
 
 	vkUpdateDescriptorSets( vkcontext.device, writeIndex, writes, 0, NULL );
 
-	vkCmdBindDescriptorSets( vkcontext.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, prog.pipelineLayout, 0, 1, &descSet, 0, NULL );
-	vkCmdBindPipeline( vkcontext.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline );
+	vkCmdBindDescriptorSets( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, prog.pipelineLayout, 0, 1, &descSet, 0, NULL );
+	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline );
 }
 
 /*
@@ -1056,6 +1058,17 @@ CONSOLE_COMMAND( Vulkan_ClearPipelines, "Clear all existing pipelines, forcing t
 		}
 		prog.pipelines.Clear();
 	}
+}
+
+CONSOLE_COMMAND( Vulkan_PrintNumPipelines, "Print the number of pipelines available.", 0 ) {
+	int totalPipelines = 0;
+	for ( int i = 0; i < renderProgManager.m_renderProgs.Num(); ++i ) {
+		renderProg_t & prog = renderProgManager.m_renderProgs[ i ];
+		int progPipelines = prog.pipelines.Num();
+		totalPipelines += progPipelines;
+		idLib::Printf( "%s: %d\n", prog.name.c_str(), progPipelines );
+	}
+	idLib::Printf( "TOTAL: %d\n", totalPipelines );
 }
 
 CONSOLE_COMMAND( Vulkan_PrintPipelineStates, "Print the GLState bits associated with each pipeline.", 0 ) {

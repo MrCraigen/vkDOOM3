@@ -129,13 +129,11 @@ void RB_LoadShaderTextureMatrix( const float *shaderRegisters, const textureStag
 void RB_BakeTextureMatrixIntoTexgen( idPlane lightProject[3], const float *textureMatrix );
 void RB_SetupInteractionStage( const shaderStage_t *surfaceStage, const float *surfaceRegs, const float lightColor[4], idVec4 matrix[2], float color[4] );
 
-bool ChangeDisplaySettingsIfNeeded( gfxImpParms_t parms );
-bool CreateGameWindow( gfxImpParms_t parms );
-
-struct gpuInfo_t {
+struct GPUInfo_t {
 	VkPhysicalDevice					device;
 	VkPhysicalDeviceProperties			props;
 	VkPhysicalDeviceMemoryProperties	memProps;
+	VkPhysicalDeviceFeatures			features;
 	VkSurfaceCapabilitiesKHR			surfaceCaps;
 	idList< VkSurfaceFormatKHR >		surfaceFormats;
 	idList< VkPresentModeKHR >			presentModes;
@@ -144,25 +142,15 @@ struct gpuInfo_t {
 };
 
 struct vulkanContext_t {
-	uint64							counter;
-	uint32							currentFrameData;
-
 	vertCacheHandle_t				jointCacheHandle;
 
-	gpuInfo_t *						gpu;
-	idList< gpuInfo_t >				gpus;
+	GPUInfo_t						gpu;
 
 	VkDevice						device;
 	int								graphicsFamilyIdx;
 	int								presentFamilyIdx;
 	VkQueue							graphicsQueue;
 	VkQueue							presentQueue;
-
-	VkCommandPool					commandPool;
-	VkCommandBuffer					commandBuffer;
-	idArray< VkCommandBuffer, NUM_FRAME_DATA >	commandBuffers;
-	idArray< VkFence, NUM_FRAME_DATA >			commandBufferFences;
-	idArray< bool, NUM_FRAME_DATA >				commandBufferRecorded;
 
 	VkFormat						depthFormat;
 	VkRenderPass					renderPass;
@@ -192,10 +180,10 @@ public:
 	void				Init();
 	void				Shutdown();
 
-	void				ExecuteBackEndCommands( const int numCmds, const idArray< renderCommand_t, 16 > & renderCommands );
+	void				Execute( const int numCmds, const idArray< renderCommand_t, 16 > & renderCommands );
 	void				BlockingSwapBuffers();
 
-	void				Print();
+	void				Restart();
 
 private:
 	void				DrawElementsWithCounters( const drawSurf_t * surf );
@@ -203,7 +191,6 @@ private:
 
 	void				SetColorMappings();
 	void				CheckCVars();
-	void				ResizeImages();
 
 	void				DrawView( const renderCommand_t & cmd );
 	void				CopyRender( const renderCommand_t & cmd );
@@ -259,8 +246,7 @@ private:
 
 	void				CreateInstance();
 
-	void				EnumeratePhysicalDevices();
-	void				SelectPhysicalDevice();
+	void				SelectSuitablePhysicalDevice();
 
 	void				CreateLogicalDeviceAndQueues();
 
@@ -269,6 +255,9 @@ private:
 	void				CreateQueryPool();
 
 	void				CreateSurface();
+
+	void				CreateCommandPool();
+	void				CreateCommandBuffer();
 
 	void				CreateSwapChain();
 	void				DestroySwapChain();
@@ -341,10 +330,11 @@ private:
 	unsigned short		m_gammaTable[ 256 ];	// brightness / gamma modify this
 
 private:
-	
+	uint64							m_counter;
+	uint32							m_currentFrameData;
+
 	VkInstance						m_instance;
 	VkPhysicalDevice				m_physicalDevice;
-	VkPhysicalDeviceFeatures		m_physicalDeviceFeatures;
 
 	idList< const char * >			m_instanceExtensions;
 	idList< const char * >			m_deviceExtensions;
@@ -366,9 +356,15 @@ private:
 #else
 	vulkanAllocation_t				m_msaaAllocation;
 #endif
+	VkCommandPool					m_commandPool;
+
 	idArray< VkImage, NUM_FRAME_DATA >			m_swapchainImages;
 	idArray< VkImageView, NUM_FRAME_DATA >		m_swapchainViews;
 	idArray< VkFramebuffer, NUM_FRAME_DATA >	m_frameBuffers;
+	
+	idArray< VkCommandBuffer, NUM_FRAME_DATA >	m_commandBuffers;
+	idArray< VkFence, NUM_FRAME_DATA >			m_commandBufferFences;
+	idArray< bool, NUM_FRAME_DATA >				m_commandBufferRecorded;
 	idArray< VkSemaphore, NUM_FRAME_DATA >		m_acquireSemaphores;
 	idArray< VkSemaphore, NUM_FRAME_DATA >		m_renderCompleteSemaphores;
 

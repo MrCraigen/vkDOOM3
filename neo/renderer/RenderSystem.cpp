@@ -622,6 +622,8 @@ void idRenderSystemLocal::VidRestart() {
 	// set the mode without re-initializing the context
 	SetNewMode();
 
+	m_backend.Restart();
+
 #if 0
 	// this could take a while, so give them the cursor back ASAP
 	Sys_GrabMouseCursor( false );
@@ -1432,7 +1434,7 @@ void idRenderSystemLocal::RenderCommandBuffers() {
 		return;
 	}
 
-	m_backend.ExecuteBackEndCommands( frameData.renderCommandIndex, frameData.renderCommands );
+	m_backend.Execute( frameData.renderCommandIndex, frameData.renderCommands );
 
 	// pass in null for now - we may need to do some map specific hackery in the future
 	resolutionScale.InitForMap( NULL );

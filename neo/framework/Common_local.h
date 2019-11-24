@@ -41,9 +41,6 @@ static const int LOAD_TIP_COUNT = 26;
 class idGameThread : public idSysThread {
 public:
 	idGameThread() :
-		threadTime(),
-		threadGameTime(),
-		threadRenderTime(),
 		userCmdMgr( NULL ),
 		ret(),
 		numGameFrames(),
@@ -54,22 +51,9 @@ public:
 	// new frame will be running in parallel on exit
 	gameReturn_t	RunGameAndDraw( int numGameFrames, idUserCmdMgr & userCmdMgr_, bool isClient_, int startGameFrame );
 
-	// Accessors to the stored frame/thread time information
-	void			SetThreadTotalTime( const uint64 inTime ) { threadTime = inTime; }
-	uint64			GetThreadTotalTime() const { return threadTime; }
-
-	void			SetThreadGameTime( const uint64 time ) { threadGameTime = time; }
-	uint64			GetThreadGameTime() const { return threadGameTime; }
-
-	void			SetThreadRenderTime( const uint64 time ) { threadRenderTime = time; }
-	uint64			GetThreadRenderTime() const { return threadRenderTime; }
-
 private:
 	virtual int	Run();
-
-	uint64			threadTime;					// total time : game time + foreground render time
-	uint64			threadGameTime;				// game time only
-	uint64			threadRenderTime;			// render fg time only
+	
 	idUserCmdMgr *	userCmdMgr;
 	gameReturn_t	ret;
 	int				numGameFrames;
@@ -94,22 +78,58 @@ struct netTimes_t {
 };
 
 struct frameTiming_t {
-	frameTiming_t() : 
-		startSyncTime( 0 ),
-		finishSyncTime( 0 ),
-		startGameTime( 0 ),
-		finishGameTime( 0 ),
-		finishDrawTime( 0 ),
-		startRenderTime( 0 ),
-		finishRenderTime( 0 ),
-		frontendTime( 0 ),
-		backendTime( 0 ),
-		depthTime( 0 ),
-		interactionTime( 0 ),
-		shaderTime( 0 ),
-		shadowTime( 0 ),
-		gpuTime( 0 ) {
+	frameTiming_t() {
+		Reset();
 	}
+
+	void Reset() {
+		startSyncTime		= 0;
+		finishSyncTime		= 0;
+		startGameTime		= 0;
+		finishGameTime		= 0;
+		finishDrawTime		= 0;
+		startRenderTime		= 0;
+		finishRenderTime	= 0;
+		
+		frontendTime		= 0;
+		backendTime			= 0;
+		depthTime			= 0;
+		interactionTime		= 0;
+		shaderTime			= 0;
+		shadowTime			= 0;
+		gpuTime				= 0;
+
+		samples				= 0;
+		backendTotalTime	= 0;
+		gpuTotalTime		= 0;
+		backendTimeAvg		= 0.0;
+		gpuTimeAvg			= 0.0;
+	}
+
+	void Update( frameTiming_t & other ) {
+		startSyncTime		= other.startSyncTime;
+		finishSyncTime		= other.finishSyncTime;
+		startGameTime		= other.startGameTime;
+		finishGameTime		= other.finishGameTime;
+		finishDrawTime		= other.finishDrawTime;
+		startRenderTime		= other.startRenderTime;
+		finishRenderTime	= other.finishRenderTime;
+		
+		frontendTime		= other.frontendTime;
+		backendTime			= other.backendTime;
+		depthTime			= other.depthTime;
+		interactionTime		= other.interactionTime;
+		shaderTime			= other.shaderTime;
+		shadowTime			= other.shadowTime;
+		gpuTime				= other.gpuTime;
+
+		samples++;
+		backendTotalTime	+= backendTime;
+		gpuTotalTime		+= gpuTime;
+		backendTimeAvg		= backendTotalTime / samples;
+		gpuTimeAvg			= gpuTotalTime / samples;
+	}
+
 	uint64	startSyncTime;
 	uint64	finishSyncTime;
 	uint64	startGameTime;
@@ -125,6 +145,12 @@ struct frameTiming_t {
 	uint64	shaderTime;
 	uint64	shadowTime;
 	uint64	gpuTime;
+
+	uint64	samples;
+	uint64	backendTotalTime;
+	uint64	gpuTotalTime;
+	double	backendTimeAvg;
+	double	gpuTimeAvg;
 };
 
 #define	MAX_PRINT_MSG_SIZE	4096
@@ -224,10 +250,6 @@ public:
 
 public:
 	void	Draw();			// called by gameThread
-
-	uint64		GetGameThreadTotalTime() const { return gameThread.GetThreadTotalTime(); }
-	uint64		GetGameThreadGameTime() const { return gameThread.GetThreadGameTime(); }
-	uint64		GetGameThreadRenderTime() const { return gameThread.GetThreadRenderTime(); }
 
 	frameTiming_t		m_frameTiming;
 	frameTiming_t		m_mainFrameTiming;

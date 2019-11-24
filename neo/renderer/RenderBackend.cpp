@@ -29,8 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 
 #pragma hdrstop
 #include "../framework/precompiled.h"
-#include "../sys/win32/win_local.h"
 #include "../framework/Common_local.h"
+#include "../sys/win32/win_local.h"
+#include "../sys/win32/rc/doom_resource.h"
 #include "RenderSystem_local.h"
 #include "RenderBackend.h"
 #include "RenderLog.h"
@@ -439,7 +440,7 @@ void RB_SetupInteractionStage( const shaderStage_t *surfaceStage, const float *s
 GetDisplayName
 ========================
 */
-const char * GetDisplayName( const int deviceNum ) {
+static const char * GetDisplayName( const int deviceNum ) {
 	static DISPLAY_DEVICE	device;
 	device.cb = sizeof( device );
 	if ( !EnumDisplayDevices(
@@ -457,7 +458,7 @@ const char * GetDisplayName( const int deviceNum ) {
 GetDeviceName
 ========================
 */
-idStr GetDeviceName( const int deviceNum ) {
+static idStr GetDeviceName( const int deviceNum ) {
 	DISPLAY_DEVICE	device = {};
 	device.cb = sizeof( device );
 	if ( !EnumDisplayDevices(
@@ -487,7 +488,7 @@ These are now taken as 16 bit values, so we can take full advantage
 of dacs with >8 bits of precision
 ========================
 */
-void SetGamma( unsigned short red[256], unsigned short green[256], unsigned short blue[256] ) {
+static void SetGamma( unsigned short red[256], unsigned short green[256], unsigned short blue[256] ) {
 	unsigned short table[3][256];
 	int i;
 
@@ -511,7 +512,7 @@ void SetGamma( unsigned short red[256], unsigned short green[256], unsigned shor
 GetDisplayCoordinates
 ========================
 */
-bool GetDisplayCoordinates( const int deviceNum, int & x, int & y, int & width, int & height, int & displayHz ) {
+static bool GetDisplayCoordinates( const int deviceNum, int & x, int & y, int & width, int & height, int & displayHz ) {
 	idStr deviceName = GetDeviceName( deviceNum );
 	if ( deviceName.Length() == 0 ) {
 		return false;
@@ -666,7 +667,7 @@ bool ChangeDisplaySettingsIfNeeded( gfxImpParms_t parms ) {
 GetWindowDimensions
 ====================
 */
-bool GetWindowDimensions( const gfxImpParms_t parms, int &x, int &y, int &w, int &h ) {
+static bool GetWindowDimensions( const gfxImpParms_t parms, int &x, int &y, int &w, int &h ) {
 	//
 	// compute width and height
 	//
@@ -719,105 +720,6 @@ const char * DMDFO( int dmDisplayFixedOutput ) {
 	case DMDFO_STRETCH: return "DMDFO_STRETCH";
 	}
 	return "UNKNOWN";
-}
-
-/*
-====================
-PrintDevMode
-====================
-*/
-void PrintDevMode( DEVMODE & devmode ) {
-	idLib::Printf( "          dmPosition.x        : %i\n", devmode.dmPosition.x );
-	idLib::Printf( "          dmPosition.y        : %i\n", devmode.dmPosition.y );
-	idLib::Printf( "          dmBitsPerPel        : %i\n", devmode.dmBitsPerPel );
-	idLib::Printf( "          dmPelsWidth         : %i\n", devmode.dmPelsWidth );
-	idLib::Printf( "          dmPelsHeight        : %i\n", devmode.dmPelsHeight );
-	idLib::Printf( "          dmDisplayFixedOutput: %s\n", DMDFO( devmode.dmDisplayFixedOutput ) );
-	idLib::Printf( "          dmDisplayFlags      : 0x%x\n", devmode.dmDisplayFlags );
-	idLib::Printf( "          dmDisplayFrequency  : %i\n", devmode.dmDisplayFrequency );
-}
-
-/*
-====================
-DumpAllDisplayDevices
-====================
-*/
-void DumpAllDisplayDevices() {
-	idLib::Printf( "\n" );
-	for ( int deviceNum = 0 ; ; deviceNum++ ) {
-		DISPLAY_DEVICE	device = {};
-		device.cb = sizeof( device );
-		if ( !EnumDisplayDevices(
-				0,			// lpDevice
-				deviceNum,
-				&device,
-				0 /* dwFlags */ ) ) {
-			break;
-		}
-
-		idLib::Printf( "display device: %i\n", deviceNum );
-		idLib::Printf( "  DeviceName  : %s\n", device.DeviceName );
-		idLib::Printf( "  DeviceString: %s\n", device.DeviceString );
-		idLib::Printf( "  StateFlags  : 0x%x\n", device.StateFlags );
-		idLib::Printf( "  DeviceID    : %s\n", device.DeviceID );
-		idLib::Printf( "  DeviceKey   : %s\n", device.DeviceKey );
-
-		for ( int monitorNum = 0 ; ; monitorNum++ ) {
-			DISPLAY_DEVICE	monitor = {};
-			monitor.cb = sizeof( monitor );
-			if ( !EnumDisplayDevices(
-					device.DeviceName,
-					monitorNum,
-					&monitor,
-					0 /* dwFlags */ ) ) {
-				break;
-			}
-
-			idLib::Printf( "      DeviceName  : %s\n", monitor.DeviceName );
-			idLib::Printf( "      DeviceString: %s\n", monitor.DeviceString );
-			idLib::Printf( "      StateFlags  : 0x%x\n", monitor.StateFlags );
-			idLib::Printf( "      DeviceID    : %s\n", monitor.DeviceID );
-			idLib::Printf( "      DeviceKey   : %s\n", monitor.DeviceKey );
-
-			DEVMODE	currentDevmode = {};
-			if ( !EnumDisplaySettings( device.DeviceName,ENUM_CURRENT_SETTINGS, &currentDevmode ) ) {
-				idLib::Printf( "ERROR:  EnumDisplaySettings(ENUM_CURRENT_SETTINGS) failed!\n" );
-			}
-			idLib::Printf( "          -------------------\n" );
-			idLib::Printf( "          ENUM_CURRENT_SETTINGS\n" );
-			PrintDevMode( currentDevmode );
-
-			DEVMODE	registryDevmode = {};
-			if ( !EnumDisplaySettings( device.DeviceName,ENUM_REGISTRY_SETTINGS, &registryDevmode ) ) {
-				idLib::Printf( "ERROR:  EnumDisplaySettings(ENUM_CURRENT_SETTINGS) failed!\n" );
-			}
-			idLib::Printf( "          -------------------\n" );
-			idLib::Printf( "          ENUM_CURRENT_SETTINGS\n" );
-			PrintDevMode( registryDevmode );
-
-			for ( int modeNum = 0 ; ; modeNum++ ) {
-				DEVMODE	devmode = {};
-
-				if ( !EnumDisplaySettings( device.DeviceName,modeNum, &devmode ) ) {
-					break;
-				}
-
-				if ( devmode.dmBitsPerPel != 32 ) {
-					continue;
-				}
-				if ( devmode.dmDisplayFrequency < 60 ) {
-					continue;
-				}
-				if ( devmode.dmPelsHeight < 720 ) {
-					continue;
-				}
-				idLib::Printf( "          -------------------\n" );
-				idLib::Printf( "          modeNum             : %i\n", modeNum );
-				PrintDevMode( devmode );
-			}
-		}
-	}
-	idLib::Printf( "\n" );
 }
 
 /*
@@ -948,20 +850,17 @@ bool SetScreenParms( gfxImpParms_t parms ) {
 		return false;
 	}
 
-	int exstyle;
 	int stylebits;
 
 	if ( parms.fullScreen ) {
-		exstyle = WS_EX_TOPMOST;
 		stylebits = WS_POPUP|WS_VISIBLE|WS_SYSMENU;
 	} else {
-		exstyle = 0;
 		stylebits = WINDOW_STYLE|WS_SYSMENU;
 	}
 
 	SetWindowLong( win32.hWnd, GWL_STYLE, stylebits );
-	SetWindowLong( win32.hWnd, GWL_EXSTYLE, exstyle );
-	SetWindowPos( win32.hWnd, parms.fullScreen ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, w, h, SWP_SHOWWINDOW );
+	SetWindowLong( win32.hWnd, GWL_EXSTYLE, 0 );
+	SetWindowPos( win32.hWnd, HWND_NOTOPMOST, x, y, w, h, SWP_SHOWWINDOW );
 
 	win32.isFullscreen = parms.fullScreen;
 	win32.nativeScreenWidth = parms.width;
@@ -1044,11 +943,34 @@ gfxImpParms_t R_GetModeParms() {
 }
 
 /*
+====================
+CreateWindowClasses
+====================
+*/
+void CreateWindowClasses() {
+	WNDCLASS wc;
+	memset( &wc, 0, sizeof( wc ) );
+
+	wc.style         = 0;
+	wc.lpfnWndProc   = (WNDPROC) MainWndProc;
+	wc.cbClsExtra    = 0;
+	wc.cbWndExtra    = 0;
+	wc.hInstance     = win32.hInstance;
+	wc.hIcon         = LoadIcon( win32.hInstance, MAKEINTRESOURCE(IDI_ICON1));
+	wc.hCursor       = NULL;
+	wc.hbrBackground = (struct HBRUSH__ *)COLOR_GRAYTEXT;
+	wc.lpszMenuName  = 0;
+	wc.lpszClassName = WIN32_WINDOW_CLASS_NAME;
+
+	if ( !RegisterClass( &wc ) ) {
+		common->FatalError( "CreateGameWindow: could not register window class" );
+	}
+	idLib::Printf( "...registered window class\n" );
+}
+
+/*
 =======================
 CreateGameWindow
-
-Responsible for creating the Win32 window.
-If fullscreen, it won't have a border
 =======================
 */
 bool CreateGameWindow( gfxImpParms_t parms ) {
@@ -1057,18 +979,15 @@ bool CreateGameWindow( gfxImpParms_t parms ) {
 		return false;
 	}
 
-	int				stylebits;
-	int				exstyle;
+	int	stylebits;
 	if ( parms.fullScreen != 0 ) {
-		exstyle = WS_EX_TOPMOST;
 		stylebits = WS_POPUP|WS_VISIBLE|WS_SYSMENU;
 	} else {
-		exstyle = 0;
 		stylebits = WINDOW_STYLE|WS_SYSMENU;
 	}
 
 	win32.hWnd = CreateWindowEx (
-		 exstyle, 
+		 0, 
 		 WIN32_WINDOW_CLASS_NAME,
 		 GAME_NAME,
 		 stylebits,
@@ -1177,13 +1096,13 @@ BACKEND COMMANDS
 
 /*
 =============
-idRenderBackend::ExecuteBackEndCommands
+idRenderBackend::Execute
 
 This function will be called syncronously if running without
 smp extensions, or asyncronously by another thread.
 =============
 */
-void idRenderBackend::ExecuteBackEndCommands( const int numCmds, const idArray< renderCommand_t, 16 > & renderCommands ) {
+void idRenderBackend::Execute( const int numCmds, const idArray< renderCommand_t, 16 > & renderCommands ) {
 	CheckCVars();
 
 	resolutionScale.SetCurrentGPUFrameTime( commonLocal.m_mainFrameTiming.gpuTime );
@@ -1191,8 +1110,6 @@ void idRenderBackend::ExecuteBackEndCommands( const int numCmds, const idArray< 
 	if ( numCmds == 0 ) {
 		return;
 	}
-
-	ResizeImages();
 
 	renderLog.StartFrame();
 	GL_StartFrame();
@@ -2733,7 +2650,7 @@ int idRenderBackend::DrawShaderPasses( const drawSurf_t * const * const drawSurf
 		renderLog.CloseBlock();
 	}
 
-	GL_State( m_glStateBits & ~( GLS_CULL_MASK ) | GLS_CULL_FRONTSIDED );
+	GL_State( m_glStateBits & ~( GLS_CULL_BITS ) | GLS_CULL_FRONTSIDED );
 	GL_Color( 1.0f, 1.0f, 1.0f );
 
 	renderLog.CloseBlock();
@@ -2998,7 +2915,7 @@ void idRenderBackend::FogPass( const drawSurf_t * drawSurfs,  const drawSurf_t *
 	m_zeroOneCubeSurface.scissorRect = m_viewDef->scissor;
 	T_BasicFog( &m_zeroOneCubeSurface, fogPlanes, &vLight->inverseBaseLightProject );
 
-	GL_State( m_glStateBits & ~( GLS_CULL_MASK ) | GLS_CULL_FRONTSIDED );
+	GL_State( m_glStateBits & ~( GLS_CULL_BITS ) | GLS_CULL_FRONTSIDED );
 
 	renderLog.CloseBlock();
 }
@@ -3175,7 +3092,7 @@ void idRenderBackend::StencilShadowPass( const drawSurf_t *drawSurfs, const view
 
 	// cleanup the shadow specific rendering state
 
-	GL_State( m_glStateBits & ~( GLS_CULL_MASK ) | GLS_CULL_FRONTSIDED );
+	GL_State( m_glStateBits & ~( GLS_CULL_BITS ) | GLS_CULL_FRONTSIDED );
 
 	// reset depth bounds
 	if ( r_useShadowDepthBounds.GetBool() ) {
@@ -3243,7 +3160,7 @@ void idRenderBackend::StencilSelectLight( const viewLight_t * vLight ) {
 	DrawElementsWithCounters( &m_zeroOneCubeSurface );
 
 	// reset stencil state
-	GL_State( m_glStateBits & ~( GLS_CULL_MASK ) | GLS_CULL_FRONTSIDED );
+	GL_State( m_glStateBits & ~( GLS_CULL_BITS ) | GLS_CULL_FRONTSIDED );
 
 	// unset the depthbounds
 	GL_DepthBoundsTest( 0.0f, 0.0f );
